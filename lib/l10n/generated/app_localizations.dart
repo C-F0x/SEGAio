@@ -210,7 +210,7 @@ abstract class AppLocalizations {
   /// No description provided for @configFolderDesc.
   ///
   /// In en, this message translates to:
-  /// **'Project lists and logs are saved in %AppData%/segacfg'**
+  /// **'Project lists and logs are saved in %AppData%/SEGAIO'**
   String get configFolderDesc;
 
   /// No description provided for @openFolder.

@@ -19,7 +19,7 @@ dependencies:
   screen_retriever: ^0.2.0
   fluentui_system_icons: ^1.1.273
   path_provider: ^2.1.1
-  path: ^1.8.3
+  path: any
   file_picker: ^10.3.8
   ini: ^2.1.0
   flutter_localizations:

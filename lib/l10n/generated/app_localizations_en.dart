@@ -65,7 +65,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get configFolderDesc =>
-      'Project lists and logs are saved in %AppData%/segacfg';
+      'Project lists and logs are saved in %AppData%/SEGAIO';
 
   @override
   String get openFolder => 'Open Folder';

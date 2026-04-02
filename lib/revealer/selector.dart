@@ -1,10 +1,10 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/services.dart';
-import 'chusan.dart';
-import 'mu3.dart';
-import 'mai2.dart';
+import 'chusan/chusan.dart';
+import 'mu3/mu3.dart';
+import 'mai2/mai2.dart';
 import 'ttyd.dart';
-import 'demo1.dart';
+import 'fallback.dart';
 
 class SelectorPage extends StatefulWidget {
   const SelectorPage({super.key});
@@ -29,6 +29,14 @@ class _SelectorPageState extends State<SelectorPage> {
   final TextEditingController _customInputController = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    _customInputController.addListener(() {
+      setState(() {});
+    });
+  }
+
+  @override
   void dispose() {
     _freqController.dispose();
     _customInputController.dispose();
@@ -42,9 +50,14 @@ class _SelectorPageState extends State<SelectorPage> {
   }
 
   Widget _buildTargetView() {
+    if (_selectedMinor == 'Custom' && _customInputController.text.trim() == '114514') {
+      return const FallBackPage();
+    }
+
     if (_debugLevel == 1) {
       return const TtydPage();
     }
+
     switch (_selectedMajor) {
       case 'Chusan':
         return const ChusanPage();
@@ -53,7 +66,7 @@ class _SelectorPageState extends State<SelectorPage> {
       case 'Mai2':
         return const Mai2Page();
       default:
-        return const Demo1Page();
+        return const FallBackPage();
     }
   }
 
@@ -158,7 +171,7 @@ class _SelectorPageState extends State<SelectorPage> {
               child: Container(
                 width: double.infinity,
                 decoration: BoxDecoration(
-                  color: theme.cardColor.withOpacity(0.4),
+                  color: Colors.transparent,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: theme.resources.surfaceStrokeColorDefault,

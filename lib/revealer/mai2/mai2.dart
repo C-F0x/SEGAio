@@ -1,43 +1,27 @@
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
+import 'dart:typed_data';
+import '../inject.dart';
 
-class Mai2Controller extends ChangeNotifier {
-  List<bool> a = List.filled(8, false);
-  List<bool> b = List.filled(8, false);
-  List<bool> c = List.filled(2, false);
-  List<bool> d = List.filled(8, false);
-  List<bool> e = List.filled(8, false);
-
-  void updateData(List<bool> na, List<bool> nb, List<bool> nc,
-      List<bool> nd, List<bool> ne) {
-    a = na; b = nb; c = nc; d = nd; e = ne;
-    notifyListeners();
-  }
-}
 
 class Mai2Page extends StatefulWidget {
-  const Mai2Page({super.key});
+  final Uint8List? rawData;
+
+  const Mai2Page({super.key, this.rawData});
+
   @override
   State<Mai2Page> createState() => _Mai2PageState();
 }
 
 class _Mai2PageState extends State<Mai2Page> {
-  final Mai2Controller controller = Mai2Controller();
-
-  @override
-  void initState() {
-    super.initState();
-    controller.updateData(
-      List.filled(8, false),
-      List.filled(8, false),
-      List.filled(2, false),
-      List.filled(8, false),
-      List.filled(8, false),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
+    final brightness = Theme.of(context).brightness;
+
+    final data = Mai2GoInject(
+      widget.rawData ?? Uint8List(Mai2GoInject.kSize),
+    ).inject();
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: SafeArea(
@@ -46,12 +30,9 @@ class _Mai2PageState extends State<Mai2Page> {
             aspectRatio: 1.0,
             child: Padding(
               padding: const EdgeInsets.all(18.0),
-              child: AnimatedBuilder(
-                animation: controller,
-                builder: (_, __) => CustomPaint(
-                  painter: Mai2Painter(controller: controller),
-                  child: Container(),
-                ),
+              child: CustomPaint(
+                painter: Mai2Painter(data: data, brightness: brightness),
+                child: Container(),
               ),
             ),
           ),
@@ -62,22 +43,35 @@ class _Mai2PageState extends State<Mai2Page> {
 }
 
 class Mai2Painter extends CustomPainter {
-  final Mai2Controller controller;
-  const Mai2Painter({required this.controller});
+  final Mai2Data   data;
+  final Brightness brightness;
 
-  static const Color _gray = Color(0xCCDDE3EE);
-  static const Color _blue = Color(0xFF1A3FFF);
+  const Mai2Painter({required this.data, required this.brightness});
+
+  bool get _isDark => brightness == Brightness.dark;
+
+  Color get _colorInactive => _isDark
+      ? const Color(0xCCDDE3EE)
+      : const Color(0xCC64748B);
+  Color get _colorActive => _isDark
+      ? const Color(0xFF1A3FFF)
+      : const Color(0xFF1030DD);
+
+  Color _labelColor(bool active) {
+    if (active) return Colors.white;
+    return _isDark ? Colors.white : const Color(0xFFF0F4FF);
+  }
 
   static const double kRC   = 0.175;
   static const double kRSUN = 0.320;
   static const double kRB   = 0.555;
   static const double kRBG  = 0.648;
   static const double kROUT = 0.950;
-  static const double kRE = (kRB + kRBG) / 2.0;
-  static const double kEH = (kRBG - kRB) * 1.80;
-  static const double kDH = math.pi / 24.0;
-  static const double kAH = math.pi / 12.0;
-  static const double kSW = 0.018;
+  static const double kRE   = (kRB + kRBG) / 2.0;
+  static const double kEH   = (kRBG - kRB) * 1.80;
+  static const double kDH   = math.pi / 24.0;
+  static const double kAH   = math.pi / 12.0;
+  static const double kSW   = 0.018;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -112,8 +106,12 @@ class Mai2Painter extends CustomPainter {
       _square(o, rSUN, -math.pi / 2 + math.pi / 4),
     );
 
-    final Paint grayP  = Paint()..style = PaintingStyle.fill..color = _gray;
-    final Paint blueP  = Paint()..style = PaintingStyle.fill..color = _blue;
+    final Paint inactiveP = Paint()
+      ..style = PaintingStyle.fill
+      ..color = _colorInactive;
+    final Paint activeP = Paint()
+      ..style = PaintingStyle.fill
+      ..color = _colorActive;
     final Paint clearF = Paint()
       ..style     = PaintingStyle.fill
       ..blendMode = BlendMode.clear;
@@ -125,20 +123,20 @@ class Mai2Painter extends CustomPainter {
       ..blendMode   = BlendMode.clear;
 
     void fillBlock(Path p, bool active) =>
-        canvas.drawPath(p, active ? blueP : grayP);
+        canvas.drawPath(p, active ? activeP : inactiveP);
 
-    final List<Path> adPaths = [];
-    final List<bool> adActv  = [];
-    final List<Path> bPaths  = [];
-    final List<bool> bActv   = [];
-    final List<Path> cPaths  = [];
-    final List<bool> cActv   = [];
-    final List<Path> ePaths  = [];
-    final List<bool> eActv   = [];
-
-    final List<Offset>  lblPos  = [];
-    final List<String>  lblText = [];
-    final List<double>  lblSize = [];
+    final List<Path>   adPaths = [];
+    final List<bool>   adActv  = [];
+    final List<Path>   bPaths  = [];
+    final List<bool>   bActv   = [];
+    final List<Path>   cPaths  = [];
+    final List<bool>   cActv   = [];
+    final List<Path>   ePaths  = [];
+    final List<bool>   eActv   = [];
+    final List<Offset> lblPos  = [];
+    final List<String> lblText = [];
+    final List<double> lblSize = [];
+    final List<bool>   lblActv = [];
 
     final double rLbl = (rBG + rOut) * 0.5;
 
@@ -148,71 +146,88 @@ class Mai2Painter extends CustomPainter {
 
       adPaths.add(Path.combine(PathOperation.intersect,
           _sector(o, rOut * 1.01, ai - kDH, kDH * 2.0), adRegion));
-      adActv.add(controller.d[i]);
+      adActv.add(data.d[i]);
       lblPos.add(Offset(o.dx + rLbl * math.cos(ai), o.dy + rLbl * math.sin(ai)));
       lblText.add('D${i + 1}');
       lblSize.add(fnt * 0.46);
+      lblActv.add(data.d[i]);
 
       adPaths.add(Path.combine(PathOperation.intersect,
           _sector(o, rOut * 1.01, bi - kAH, kAH * 2.0), adRegion));
-      adActv.add(controller.a[i]);
+      adActv.add(data.a[i]);
       lblPos.add(Offset(o.dx + rLbl * math.cos(bi), o.dy + rLbl * math.sin(bi)));
       lblText.add('A${i + 1}');
       lblSize.add(fnt * 0.62);
+      lblActv.add(data.a[i]);
 
       bPaths.add(Path.combine(PathOperation.intersect,
           _sector(o, rB * 1.01, ai, math.pi / 4), bRegion));
-      bActv.add(controller.b[i]);
-      lblPos.add(Offset(o.dx + rB * 0.72 * math.cos(bi),
-          o.dy + rB * 0.72 * math.sin(bi)));
+      bActv.add(data.b[i]);
+      lblPos.add(Offset(
+          o.dx + rB * 0.72 * math.cos(bi), o.dy + rB * 0.72 * math.sin(bi)));
       lblText.add('B${i + 1}');
       lblSize.add(fnt * 0.50);
+      lblActv.add(data.b[i]);
 
-      final Offset ec = Offset(o.dx + rE * math.cos(ai), o.dy + rE * math.sin(ai));
+      final Offset ec =
+      Offset(o.dx + rE * math.cos(ai), o.dy + rE * math.sin(ai));
       final Path ep = Path();
       for (int j = 0; j < 4; j++) {
         final double ca = ai + j * math.pi / 2;
-        final Offset pt = Offset(ec.dx + eH * math.cos(ca), ec.dy + eH * math.sin(ca));
+        final Offset pt =
+        Offset(ec.dx + eH * math.cos(ca), ec.dy + eH * math.sin(ca));
         j == 0 ? ep.moveTo(pt.dx, pt.dy) : ep.lineTo(pt.dx, pt.dy);
       }
       ep.close();
       ePaths.add(ep);
-      eActv.add(controller.e[i]);
+      eActv.add(data.e[i]);
       lblPos.add(ec);
       lblText.add('E${i + 1}');
       lblSize.add(fnt * 0.36);
+      lblActv.add(data.e[i]);
     }
 
     final double pad = rC * 4.0;
-    cPaths.add(Path.combine(PathOperation.intersect, cOct,
-        Path()..addRect(Rect.fromLTRB(o.dx,       o.dy - pad, o.dx + pad, o.dy + pad))));
-    cActv.add(controller.c[0]);
-    lblPos.add(Offset(o.dx + rC * 0.42, o.dy)); lblText.add('C1'); lblSize.add(fnt * 0.60);
+    cPaths.add(Path.combine(
+        PathOperation.intersect,
+        cOct,
+        Path()..addRect(Rect.fromLTRB(o.dx, o.dy - pad, o.dx + pad, o.dy + pad))));
+    cActv.add(data.c[0]);
+    lblPos.add(Offset(o.dx + rC * 0.42, o.dy));
+    lblText.add('C1');
+    lblSize.add(fnt * 0.60);
+    lblActv.add(data.c[0]);
 
-    cPaths.add(Path.combine(PathOperation.intersect, cOct,
-        Path()..addRect(Rect.fromLTRB(o.dx - pad, o.dy - pad, o.dx,       o.dy + pad))));
-    cActv.add(controller.c[1]);
-    lblPos.add(Offset(o.dx - rC * 0.42, o.dy)); lblText.add('C2'); lblSize.add(fnt * 0.60);
+    cPaths.add(Path.combine(
+        PathOperation.intersect,
+        cOct,
+        Path()..addRect(Rect.fromLTRB(o.dx - pad, o.dy - pad, o.dx, o.dy + pad))));
+    cActv.add(data.c[1]);
+    lblPos.add(Offset(o.dx - rC * 0.42, o.dy));
+    lblText.add('C2');
+    lblSize.add(fnt * 0.60);
+    lblActv.add(data.c[1]);
 
     canvas.saveLayer(bounds, Paint());
 
     for (int i = 0; i < adPaths.length; i++) fillBlock(adPaths[i], adActv[i]);
-    for (int i = 0; i < bPaths.length; i++) fillBlock(bPaths[i], bActv[i]);
+    for (int i = 0; i < bPaths.length;  i++) fillBlock(bPaths[i],  bActv[i]);
     canvas.drawPath(sunShape, clearF);
-    for (int i = 0; i < cPaths.length; i++) fillBlock(cPaths[i], cActv[i]);
+    for (int i = 0; i < cPaths.length;  i++) fillBlock(cPaths[i],  cActv[i]);
     for (final p in adPaths) canvas.drawPath(p, clearS);
     for (final p in bPaths)  canvas.drawPath(p, clearS);
     for (final p in cPaths)  canvas.drawPath(p, clearS);
-    for (final p in ePaths) canvas.drawPath(p, clearF);
-    for (int i = 0; i < ePaths.length; i++) fillBlock(ePaths[i], eActv[i]);
-    for (final p in ePaths) canvas.drawPath(p, clearS);
+    for (final p in ePaths)  canvas.drawPath(p, clearF);
+    for (int i = 0; i < ePaths.length;  i++) fillBlock(ePaths[i],  eActv[i]);
+    for (final p in ePaths)  canvas.drawPath(p, clearS);
 
     canvas.restore();
 
     for (int i = 0; i < lblPos.length; i++) {
-      _label(canvas, lblPos[i], lblText[i], lblSize[i]);
+      _label(canvas, lblPos[i], lblText[i], lblSize[i], lblActv[i]);
     }
   }
+
   Path _oct(Offset c, double r, double a0) {
     final Path p = Path();
     for (int k = 0; k < 8; k++) {
@@ -239,15 +254,15 @@ class Mai2Painter extends CustomPainter {
     return p..close();
   }
 
-  void _label(Canvas canvas, Offset pos, String text, double size) {
+  void _label(Canvas canvas, Offset pos, String text, double size, bool active) {
     final TextPainter tp = TextPainter(
       text: TextSpan(
         text: text,
         style: TextStyle(
-          color: Colors.white,
-          fontSize: size.clamp(5.0, 40.0),
+          color:      _labelColor(active),
+          fontSize:   size.clamp(5.0, 40.0),
           fontWeight: FontWeight.w700,
-          height: 1.0,
+          height:     1.0,
         ),
       ),
       textDirection: TextDirection.ltr,
@@ -256,5 +271,11 @@ class Mai2Painter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant Mai2Painter old) => true;
+  bool shouldRepaint(covariant Mai2Painter old) =>
+      old.brightness != brightness ||
+          old.data.a != data.a ||
+          old.data.b != data.b ||
+          old.data.c != data.c ||
+          old.data.d != data.d ||
+          old.data.e != data.e;
 }

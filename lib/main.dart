@@ -9,7 +9,7 @@ import 'package:flutter/foundation.dart';
 import 'pages/overview.dart';
 import 'pages/settings.dart';
 import 'pages/config.dart';
-import 'revealer/selector.dart';
+import 'revealer/init.dart';
 import 'l10n/generated/app_localizations.dart';
 
 void main() async {
@@ -17,15 +17,18 @@ void main() async {
   await flutter_acrylic.Window.initialize();
   await windowManager.ensureInitialized();
 
-  ThemeMode savedMode = await _loadSettings();
-  bool isDark = savedMode == ThemeMode.system
+  final savedMode = await _loadSettings();
+  final isDark    = savedMode == ThemeMode.system
       ? PlatformDispatcher.instance.platformBrightness == Brightness.dark
       : savedMode == ThemeMode.dark;
 
   windowManager.waitUntilReadyToShow().then((_) async {
     await windowManager.setBackgroundColor(Colors.transparent);
     await windowManager.show();
-    await flutter_acrylic.Window.setEffect(effect: flutter_acrylic.WindowEffect.mica, dark: isDark);
+    await flutter_acrylic.Window.setEffect(
+      effect: flutter_acrylic.WindowEffect.mica,
+      dark:   isDark,
+    );
   });
 
   runApp(MyApp(initialThemeMode: savedMode));
@@ -33,11 +36,14 @@ void main() async {
 
 Future<ThemeMode> _loadSettings() async {
   try {
-    final directory = await getApplicationSupportDirectory();
-    final file = File('${directory.path}/settings.json');
+    final dir  = await getApplicationSupportDirectory();
+    final file = File('${dir.path}/settings.json');
     if (await file.exists()) {
       final data = jsonDecode(await file.readAsString());
-      return ThemeMode.values.firstWhere((e) => e.toString() == 'ThemeMode.${data['themeMode']}', orElse: () => ThemeMode.system);
+      return ThemeMode.values.firstWhere(
+            (e) => e.toString() == 'ThemeMode.${data['themeMode']}',
+        orElse: () => ThemeMode.system,
+      );
     }
   } catch (_) {}
   return ThemeMode.system;
@@ -51,7 +57,7 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  Locale _locale = const Locale('zh');
+  Locale    _locale = const Locale('zh');
   late ThemeMode _themeMode;
 
   @override
@@ -61,45 +67,58 @@ class _MyAppState extends State<MyApp> {
   }
 
   void setLocale(Locale locale) => setState(() => _locale = locale);
+
   void setThemeMode(ThemeMode mode) async {
     setState(() => _themeMode = mode);
-    bool isDark = (mode == ThemeMode.dark) || (mode == ThemeMode.system && PlatformDispatcher.instance.platformBrightness == Brightness.dark);
-    await flutter_acrylic.Window.setEffect(effect: flutter_acrylic.WindowEffect.mica, dark: isDark);
+    final isDark = mode == ThemeMode.dark ||
+        (mode == ThemeMode.system &&
+            PlatformDispatcher.instance.platformBrightness == Brightness.dark);
+    await flutter_acrylic.Window.setEffect(
+      effect: flutter_acrylic.WindowEffect.mica,
+      dark:   isDark,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return FluentApp(
       debugShowCheckedModeBanner: false,
-      locale: _locale,
+      locale:                _locale,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
-      supportedLocales: AppLocalizations.supportedLocales,
-      themeMode: _themeMode,
+      supportedLocales:      AppLocalizations.supportedLocales,
+      themeMode:             _themeMode,
       theme: FluentThemeData(
-        brightness: Brightness.light,
+        brightness:            Brightness.light,
         scaffoldBackgroundColor: Colors.transparent,
-        navigationPaneTheme: const NavigationPaneThemeData(backgroundColor: Colors.transparent),
+        navigationPaneTheme:
+        const NavigationPaneThemeData(backgroundColor: Colors.transparent),
       ),
       darkTheme: FluentThemeData(
-        brightness: Brightness.dark,
+        brightness:            Brightness.dark,
         scaffoldBackgroundColor: Colors.transparent,
-        navigationPaneTheme: const NavigationPaneThemeData(backgroundColor: Colors.transparent),
+        navigationPaneTheme:
+        const NavigationPaneThemeData(backgroundColor: Colors.transparent),
       ),
       home: MainNavigation(
-        onLocaleChange: setLocale,
-        currentThemeMode: _themeMode,
-        onThemeModeChange: setThemeMode,
+        onLocaleChange:      setLocale,
+        currentThemeMode:    _themeMode,
+        onThemeModeChange:   setThemeMode,
       ),
     );
   }
 }
 
 class MainNavigation extends StatefulWidget {
-  final Function(Locale) onLocaleChange;
-  final ThemeMode currentThemeMode;
+  final Function(Locale)    onLocaleChange;
+  final ThemeMode           currentThemeMode;
   final Function(ThemeMode) onThemeModeChange;
 
-  const MainNavigation({super.key, required this.onLocaleChange, required this.currentThemeMode, required this.onThemeModeChange});
+  const MainNavigation({
+    super.key,
+    required this.onLocaleChange,
+    required this.currentThemeMode,
+    required this.onThemeModeChange,
+  });
 
   @override
   State<MainNavigation> createState() => _MainNavigationState();
@@ -118,38 +137,36 @@ class _MainNavigationState extends State<MainNavigation> {
         automaticallyImplyLeading: false,
       ),
       pane: NavigationPane(
-        selected: _currentIndex,
-        onChanged: (index) => setState(() => _currentIndex = index),
+        selected:    _currentIndex,
+        onChanged:   (i) => setState(() => _currentIndex = i),
         displayMode: PaneDisplayMode.auto,
         items: [
           PaneItem(
-            icon: const Icon(FluentIcons.home),
+            icon:  const Icon(FluentIcons.home),
             title: Text(loc.overview),
-            body: const OverviewPage(),
+            body:  const OverviewPage(),
           ),
           PaneItem(
-            key: const ValueKey('config'),
-            icon: const Icon(FluentIcons.page_list),
+            key:   const ValueKey('config'),
+            icon:  const Icon(FluentIcons.page_list),
             title: Text(loc.manageConfig),
-            body: ConfigPage(
-              title: loc.manageConfig,
-            ),
+            body:  ConfigPage(title: loc.manageConfig),
           ),
           PaneItem(
-            key: const ValueKey('revealer'),
-            icon: const Icon(FluentIcons.view_all),
+            key:   const ValueKey('revealer'),
+            icon:  const Icon(FluentIcons.view_all),
             title: const Text('Revealer'),
-            body: const SelectorPage(),
+            body:  const RevealerPage(),
           ),
         ],
         footerItems: [
           PaneItem(
-            icon: const Icon(FluentIcons.settings),
+            icon:  const Icon(FluentIcons.settings),
             title: Text(loc.settings),
-            body: SettingsPage(
-              currentThemeMode: widget.currentThemeMode,
+            body:  SettingsPage(
+              currentThemeMode:  widget.currentThemeMode,
               onThemeModeChange: widget.onThemeModeChange,
-              onLocaleChange: widget.onLocaleChange,
+              onLocaleChange:    widget.onLocaleChange,
             ),
           ),
         ],
