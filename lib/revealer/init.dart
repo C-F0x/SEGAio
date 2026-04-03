@@ -84,26 +84,26 @@ class _RevealerPageState extends State<RevealerPage> {
     });
   }
 
-  Widget _buildContentView() {
-        if (_config.minorType == 'Custom' && _config.sharedMemName == '114514') {
-      return const FallBackPage();
-    }
-
-        if (_config.debugLevel >= 1) {
-      return TtydPage(lines: List.unmodifiable(_hexLines));
-    }
-
-        switch (_config.majorType) {
-      case 'Chusan':
-        return ChusanPage(rawData: _chusanRaw);
-      case 'Mu3':
-        return Mu3Page(rawData: _mu3Raw);
-      case 'Mai2':
-        return Mai2Page(rawData: _mai2Raw);
-      default:
+    Widget _buildContentView() {
+      if (_config.minorType == 'CUSTOM' && _config.rawSharedMem == '114514') {
         return const FallBackPage();
+      }
+
+      if (_config.debugLevel >= 1) {
+        return TtydPage(lines: _hexLines);
+      }
+      
+      switch (_config.majorType) {
+        case 'Chusan':
+          return ChusanPage(rawData: _chusanRaw);
+        case 'Mu3':
+          return Mu3Page(rawData: _mu3Raw);
+        case 'Mai2':
+          return Mai2Page(rawData: _mai2Raw);
+        default:
+          return const FallBackPage();
+      }
     }
-  }
 
   @override
   Widget build(BuildContext context) {

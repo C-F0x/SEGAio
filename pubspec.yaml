@@ -1,4 +1,4 @@
-name: SEGA_Kit
+name: segaio
 description: "AIO tools for SEGA"
 
 publish_to: 'none'

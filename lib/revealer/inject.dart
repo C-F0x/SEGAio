@@ -1,11 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
-import 'dart:ffi' as ffi;
-import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
 import '../shared/bridge/revealer_ffi.dart';
+import 'shmem_ptr.dart'; // 导入解耦的映射表
 
+// --- 数据模型 ---
 
 class ChusanData {
   final List<int> slider;
@@ -59,6 +58,7 @@ class Mai2Data {
   );
 }
 
+// --- 注入处理器 ---
 
 class ChusanGoInject {
   static const int kSize = 48;
@@ -110,6 +110,7 @@ class Mai2GoInject {
   }
 }
 
+// --- 通讯协议 ---
 
 class RevealerPatch {
   final Uint8List? chusanRaw;
@@ -147,34 +148,45 @@ class RevealerPatch {
 class RevealerConfig {
   final String majorType;
   final String minorType;
-  final String sharedMemName;
+  final String rawSharedMem; // 改名以避免与 Getter 冲突
   final int    pollIntervalMs;
   final int    debugLevel;
 
   const RevealerConfig({
     required this.majorType,
     required this.minorType,
-    this.sharedMemName  = '',
+    this.rawSharedMem  = '', // UI 传进来的自定义名称
     this.pollIntervalMs = 10,
     this.debugLevel     = 0,
   });
 
+  // 统一计算逻辑：如果是 CUSTOM 则用 UI 传的值，否则去映射表查
+  String get effectiveSharedMem =>
+      minorType == 'CUSTOM' ? rawSharedMem : ShmemPtr.get(majorType, minorType);
+
+  // FFI 传输：使用计算后的有效 ID，并保持 Key 为 sharedMem
   Map<String, dynamic> toJson() => {
-    'major':           majorType,
-    'minor':           minorType,
-    'shared_mem_name': sharedMemName,
-    'poll_ms':         pollIntervalMs,
-    'debug':           debugLevel,
+    'majorType':       majorType,
+    'minorType':       minorType,
+    'sharedMem':       effectiveSharedMem,
+    'pollMs':          pollIntervalMs,
+    'debugLevel':      debugLevel,
   };
 
-  String toJsonString() => jsonEncode(toJson());
+  // 控制台打印：同样使用计算后的名称
+  String toJsonString() => jsonEncode({
+    'major':           majorType,
+    'minor':           minorType,
+    'shmem':           effectiveSharedMem,
+    'poll_ms':         pollIntervalMs,
+    'debug':           debugLevel,
+  });
 }
 
+// --- 桥接单例 ---
 
 class GoRevealerBridge {
-  GoRevealerBridge._internal() {
-    _init();
-  }
+  GoRevealerBridge._internal();
   static final GoRevealerBridge instance = GoRevealerBridge._internal();
 
   final StreamController<RevealerPatch> _ctrl = StreamController<RevealerPatch>.broadcast();
@@ -183,32 +195,23 @@ class GoRevealerBridge {
   bool _running = false;
   bool get isRunning => _running;
 
-    late ffi.NativeCallable<NativeCallback> _nativeCallable;
-
-  void _init() {
-        _nativeCallable = ffi.NativeCallable<NativeCallback>.listener(_onNativePatch);
-    RevealerFfi.instance.registerCallback(_nativeCallable.nativeFunction);
-  }
-
-  static void _onNativePatch(ffi.Pointer<Utf8> jsonPtr) {
-    try {
-      final jsonStr = jsonPtr.toDartString();
-      final map = jsonDecode(jsonStr) as Map<String, dynamic>;
-      instance._ctrl.add(RevealerPatch.fromJson(map));
-    } catch (e) {
-      debugPrint('[Bridge] _onNativePatch error: $e');
-    }
-  }
-
   Future<void> start(RevealerConfig config) async {
     if (_running) await stop();
-    _running = true;
 
-        final result = RevealerFfi.instance.start(config.toJsonString());
+    // 传入根据映射表生成的动态 config
+    final result = RevealerFfi.instance.start(config.toJson(), (Map data) {
+      try {
+        instance._ctrl.add(RevealerPatch.fromJson(data.cast<String, dynamic>()));
+      } catch (e) {
+        debugPrint('[Bridge] Callback process error: $e');
+      }
+    });
+
     if (result != 0) {
       _running = false;
       debugPrint('[Bridge] start failed with code: $result');
     } else {
+      _running = true;
       debugPrint('[Bridge] start ${config.toJsonString()}');
     }
   }

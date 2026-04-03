@@ -42,13 +42,18 @@ class _RevealerOptionBarState extends State<RevealerOptionBar> {
   bool get _isCustom => _minor == 'CUSTOM';
   bool get _isLocked => _running;
 
-  RevealerConfig _buildConfig() => RevealerConfig(
-    majorType:      _major,
-    minorType:      _minor,
-    sharedMemName:  _isCustom ? _customCtrl.text.trim() : '',
-    pollIntervalMs: (1000 / (int.tryParse(_freqCtrl.text) ?? 100)).round(),
-    debugLevel:     _debugLevel,
-  );
+  RevealerConfig _buildConfig() {
+    final int hz = int.tryParse(_freqCtrl.text) ?? 100;
+    final int safeHz = hz > 0 ? hz : 1;
+
+    return RevealerConfig(
+      majorType:      _major,
+      minorType:      _minor,
+      rawSharedMem:   _isCustom ? _customCtrl.text.trim() : '',
+      pollIntervalMs: (1000 / safeHz).round(),
+      debugLevel:     _debugLevel,
+    );
+  }
 
   void _validateFreq() {
     final int? val = int.tryParse(_freqCtrl.text);

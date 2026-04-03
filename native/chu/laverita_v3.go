@@ -1,7 +1,5 @@
 package chu
 
-import "fmt"
-
 type LaveritaV3Parser struct{}
 
 func (p *LaveritaV3Parser) GetName() string {
