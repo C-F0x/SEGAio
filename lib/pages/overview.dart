@@ -38,7 +38,7 @@ class OverviewPage extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        "SEGAIO",
+                        "SEGAio",
                         style: theme.typography.title?.copyWith(fontWeight: FontWeight.w600),
                       ),
                       Text("${loc.version} 26.03.10"),

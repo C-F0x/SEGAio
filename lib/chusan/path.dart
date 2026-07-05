@@ -2,6 +2,9 @@ import 'dart:io';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:path/path.dart' as p;
 import 'package:file_picker/file_picker.dart';
+import '../shared/ini_reader.dart';
+import '../shared/widgets/section_header.dart';
+import '../shared/widgets/setting_item.dart';
 
 class PathConfig extends StatefulWidget {
   final String projectPath;
@@ -33,30 +36,24 @@ class PathConfigState extends State<PathConfig> {
     _loadConfig();
   }
 
+  @override
+  void dispose() {
+    _amfsController.dispose();
+    _optionController.dispose();
+    _appdataController.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadConfig() async {
     setState(() => _isLoading = true);
     try {
-      final file = File(p.join(widget.projectPath, 'segatools.ini'));
-      if (await file.exists()) {
-        final lines = await file.readAsLines();
-        String currentSection = "";
-        for (var line in lines) {
-          final t = line.trim();
-          if (t.isEmpty || t.startsWith(';')) continue;
-          if (t.startsWith('[') && t.endsWith(']')) {
-            currentSection = t.toLowerCase();
-            continue;
-          }
-          final parts = t.split('=');
-          if (parts.length < 2) continue;
-          final k = parts[0].trim();
-          final v = parts[1].trim();
-
-          if (currentSection == "[vfs]") {
-            if (k == 'amfs') _amfsController.text = v;
-            if (k == 'option') _optionController.text = v;
-            if (k == 'appdata') _appdataController.text = v;
-          }
+      final ini = await IniReader.load(widget.projectPath);
+      if (ini != null) {
+        final vfs = ini.section('vfs');
+        if (vfs != null) {
+          _amfsController.text = vfs.getString('amfs');
+          _optionController.text = vfs.getString('option');
+          _appdataController.text = vfs.getString('appdata');
         }
       }
       _validateAll();
@@ -73,7 +70,7 @@ class PathConfigState extends State<PathConfig> {
   }
 
   String? _checkDirContent(String pathStr, List<String> items) {
-    if (pathStr.isEmpty) return "Cant be Blank";
+    if (pathStr.isEmpty) return "Can't be Blank";
     String fullPath = pathStr;
     if (!p.isAbsolute(pathStr)) {
       fullPath = p.normalize(p.join(widget.projectPath, pathStr));
@@ -81,9 +78,12 @@ class PathConfigState extends State<PathConfig> {
     final dir = Directory(fullPath);
     if (!dir.existsSync()) return "Directory does not exist";
     try {
-      final entities = dir.listSync().map((e) => p.basename(e.path).toLowerCase()).toList();
+      final entities =
+          dir.listSync().map((e) => p.basename(e.path).toLowerCase()).toList();
       for (var item in items) {
-        if (!entities.contains(item.toLowerCase())) return "Core folders/files not found.: $item";
+        if (!entities.contains(item.toLowerCase())) {
+          return "Core folders/files not found: $item";
+        }
       }
     } catch (e) {
       return "Read failed";
@@ -109,70 +109,16 @@ class PathConfigState extends State<PathConfig> {
     };
   }
 
-  Widget _buildHighlightedText(String text, String keyword) {
-    if (keyword.isEmpty || !text.toLowerCase().contains(keyword.toLowerCase())) {
-      return Text(text);
-    }
-    final String lowercaseText = text.toLowerCase();
-    final String lowercaseKeyword = keyword.toLowerCase();
-    final List<TextSpan> spans = [];
-    int start = 0;
-    int index;
-    while ((index = lowercaseText.indexOf(lowercaseKeyword, start)) != -1) {
-      if (index > start) spans.add(TextSpan(text: text.substring(start, index)));
-      spans.add(TextSpan(
-        text: text.substring(index, index + keyword.length),
-        style: TextStyle(
-          color: FluentTheme.of(context).accentColor,
-          fontWeight: FontWeight.bold,
-        ),
-      ));
-      start = index + keyword.length;
-    }
-    if (start < text.length) spans.add(TextSpan(text: text.substring(start)));
-    return RichText(
-      text: TextSpan(style: DefaultTextStyle.of(context).style, children: spans),
-    );
-  }
-
-  Widget _buildSectionHeader(String t, IconData i) {
-    if (widget.searchKeyword.isNotEmpty) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(top: 10, bottom: 12),
-      child: Row(
-        children: [
-          Icon(i, size: 20, color: FluentTheme.of(context).accentColor),
-          const SizedBox(width: 8),
-          Text(t, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSettingItem({required String label, required Widget child, String? error}) {
-    if (widget.searchKeyword.isNotEmpty &&
-        !label.toLowerCase().contains(widget.searchKeyword.toLowerCase())) {
-      return const SizedBox.shrink();
-    }
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(flex: 3, child: _buildHighlightedText(label, widget.searchKeyword)),
-              const SizedBox(width: 16),
-              Expanded(flex: 7, child: child),
-            ],
-          ),
-          if (error != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 4.0),
-              child: Text(error, style: TextStyle(color: Colors.red.normal, fontSize: 12)),
-            ),
-        ],
-      ),
+  Widget _buildFolderPicker(TextEditingController controller) {
+    return Button(
+      child: const Icon(FluentIcons.folder_search),
+      onPressed: () async {
+        String? selected = await FilePicker.platform.getDirectoryPath();
+        if (selected != null) {
+          controller.text = _formatPath(selected);
+          _validateAll();
+        }
+      },
     );
   }
 
@@ -180,73 +126,61 @@ class PathConfigState extends State<PathConfig> {
   Widget build(BuildContext context) {
     if (_isLoading) return const SizedBox.shrink();
 
-    final List<String> searchTargets = [
+    const searchTargets = [
       "Path settings",
       "AMFS Path",
       "Option Path",
       "AppData Path",
     ];
-
-    final bool hasMatch = widget.searchKeyword.isEmpty ||
-        searchTargets.any((l) => l.toLowerCase().contains(widget.searchKeyword.toLowerCase()));
-
+    final kw = widget.searchKeyword;
+    final hasMatch = kw.isEmpty ||
+        searchTargets.any((l) => l.toLowerCase().contains(kw.toLowerCase()));
     if (!hasMatch) return const SizedBox.shrink();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionHeader("Path settings", FluentIcons.folder_open),
-        _buildSettingItem(
+        SectionHeader(
+          title: "Path settings",
+          icon: FluentIcons.folder_open,
+          visible: kw.isEmpty,
+        ),
+        SettingItem(
           label: "AMFS Path",
+          searchKeyword: kw,
           error: _amfsError,
           child: Row(children: [
-            Expanded(child: TextBox(controller: _amfsController, onChanged: (_) => _validateAll())),
+            Expanded(
+                child: TextBox(
+                    controller: _amfsController,
+                    onChanged: (_) => _validateAll())),
             const SizedBox(width: 8),
-            Button(
-              child: const Icon(FluentIcons.folder_search),
-              onPressed: () async {
-                String? selected = await FilePicker.platform.getDirectoryPath();
-                if (selected != null) {
-                  _amfsController.text = _formatPath(selected);
-                  _validateAll();
-                }
-              },
-            )
+            _buildFolderPicker(_amfsController),
           ]),
         ),
-        _buildSettingItem(
+        SettingItem(
           label: "Option Path",
+          searchKeyword: kw,
           error: _optionError,
           child: Row(children: [
-            Expanded(child: TextBox(controller: _optionController, onChanged: (_) => _validateAll())),
+            Expanded(
+                child: TextBox(
+                    controller: _optionController,
+                    onChanged: (_) => _validateAll())),
             const SizedBox(width: 8),
-            Button(
-              child: const Icon(FluentIcons.folder_search),
-              onPressed: () async {
-                String? selected = await FilePicker.platform.getDirectoryPath();
-                if (selected != null) {
-                  _optionController.text = _formatPath(selected);
-                  _validateAll();
-                }
-              },
-            )
+            _buildFolderPicker(_optionController),
           ]),
         ),
-        _buildSettingItem(
+        SettingItem(
           label: "AppData Path",
+          searchKeyword: kw,
           child: Row(children: [
-            Expanded(child: TextBox(controller: _appdataController, onChanged: (_) => _validateAll())),
+            Expanded(
+                child: TextBox(
+                    controller: _appdataController,
+                    onChanged: (_) => _validateAll())),
             const SizedBox(width: 8),
-            Button(
-              child: const Icon(FluentIcons.folder_search),
-              onPressed: () async {
-                String? selected = await FilePicker.platform.getDirectoryPath();
-                if (selected != null) {
-                  _appdataController.text = _formatPath(selected);
-                  _validateAll();
-                }
-              },
-            )
+            _buildFolderPicker(_appdataController),
           ]),
         ),
       ],

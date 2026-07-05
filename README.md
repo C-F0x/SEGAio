@@ -1,5 +1,3 @@
-# SEGAIO
+# SEGAio
 
-A GUI for editing configs of Dniel97-segatools, 
-
-Now Supporting more...
+Tools for SEGA-related I/O, based on Dniel97-segatools.

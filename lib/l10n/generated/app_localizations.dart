@@ -168,7 +168,7 @@ abstract class AppLocalizations {
   /// No description provided for @projectDescription.
   ///
   /// In en, this message translates to:
-  /// **'A GUI for editing configs of Dniel97-segatools.'**
+  /// **'Tools for SEGA-related I/O, based on Dniel97-segatools'**
   String get projectDescription;
 
   /// No description provided for @version.

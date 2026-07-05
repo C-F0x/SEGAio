@@ -1,5 +1,5 @@
 name: segaio
-description: "AIO tools for SEGA"
+description: "Tools for SEGA-related I/O, based on Dniel97-segatools"
 
 publish_to: 'none'
 

@@ -1,7 +1,10 @@
 import 'dart:io';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:path/path.dart' as p;
+import '../shared/ini_reader.dart';
 import '../shared/vk.dart';
+import '../shared/widgets/section_header.dart';
+import '../shared/widgets/setting_item.dart';
 
 class InputConfig extends StatefulWidget {
   final String projectPath;
@@ -26,12 +29,12 @@ class InputConfigState extends State<InputConfig> {
   };
 
   final Map<String, TextEditingController> _irControllers =
-  Map.fromIterable(List.generate(6, (i) => 'ir${i + 1}'),
-      value: (_) => TextEditingController());
+      Map.fromIterable(List.generate(6, (i) => 'ir${i + 1}'),
+          value: (_) => TextEditingController());
 
   final Map<String, TextEditingController> _sliderControllers =
-  Map.fromIterable(List.generate(32, (i) => 'cell${i + 1}'),
-      value: (_) => TextEditingController());
+      Map.fromIterable(List.generate(32, (i) => 'cell${i + 1}'),
+          value: (_) => TextEditingController());
 
   bool _isLoading = true;
   bool _keyboardBind = false;
@@ -43,39 +46,53 @@ class InputConfigState extends State<InputConfig> {
     _loadConfig();
   }
 
+  @override
+  void dispose() {
+    for (final c in _io3Controllers.values) {
+      c.dispose();
+    }
+    for (final c in _irControllers.values) {
+      c.dispose();
+    }
+    for (final c in _sliderControllers.values) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
   Future<void> _loadConfig() async {
     setState(() => _isLoading = true);
     try {
-      final file = File(p.join(widget.projectPath, 'segatools.ini'));
-      if (await file.exists()) {
-        final lines = await file.readAsLines();
-        String currentSection = "";
-        for (var line in lines) {
-          final t = line.trim();
-          if (t.isEmpty || t.startsWith(';')) continue;
-          if (t.startsWith('[') && t.endsWith(']')) {
-            currentSection = t.toLowerCase();
-            continue;
+      final ini = await IniReader.load(widget.projectPath);
+      if (ini == null) return;
+
+      final io3 = ini.section('io3');
+      if (io3 != null) {
+        for (final e in _io3Controllers.entries) {
+          final val = io3.getString(e.key);
+          if (val.isNotEmpty) e.value.text = val;
+        }
+      }
+
+      final ir = ini.section('ir');
+      if (ir != null) {
+        for (final e in _irControllers.entries) {
+          final val = ir.getString(e.key);
+          if (val.isNotEmpty) {
+            e.value.text = val;
+            if (val != "0x00") _keyboardBind = true;
           }
+        }
+      }
 
-          final parts = t.split('=');
-          if (parts.length < 2) continue;
-          final k = parts[0].trim();
-          final v = parts[1].trim();
-
-          if (currentSection == "[io3]") {
-            if (_io3Controllers.containsKey(k)) _io3Controllers[k]!.text = v;
-          } else if (currentSection == "[ir]") {
-            if (_irControllers.containsKey(k)) {
-              _irControllers[k]!.text = v;
-              if (v != "0x00" && v.isNotEmpty) _keyboardBind = true;
-            }
-          } else if (currentSection == "[slider]") {
-            if (k == 'enable') _sliderEmulation = (v == '1');
-            if (_sliderControllers.containsKey(k)) {
-              _sliderControllers[k]!.text = v;
-              if (v != "0x00" && v.isNotEmpty) _keyboardBind = true;
-            }
+      final slider = ini.section('slider');
+      if (slider != null) {
+        _sliderEmulation = slider.getBool('enable');
+        for (final e in _sliderControllers.entries) {
+          final val = slider.getString(e.key);
+          if (val.isNotEmpty) {
+            e.value.text = val;
+            if (val != "0x00") _keyboardBind = true;
           }
         }
       }
@@ -85,20 +102,20 @@ class InputConfigState extends State<InputConfig> {
   }
 
   Map<String, Map<String, String>> getConfigData() {
-    Map<String, Map<String, String>> result = {};
-
-    result['io3'] = _io3Controllers.map((k, v) => MapEntry(k, v.text));
-
+    final result = <String, Map<String, String>>{};
+    result['io3'] =
+        _io3Controllers.map((k, v) => MapEntry(k, v.text));
     if (_keyboardBind) {
       result['ir'] = _irControllers.map((k, v) => MapEntry(k, v.text));
     }
-
-    Map<String, String> sliderData = {'enable': _sliderEmulation ? '1' : '0'};
+    final sliderData = <String, String>{
+      'enable': _sliderEmulation ? '1' : '0',
+    };
     if (_keyboardBind) {
-      sliderData.addAll(_sliderControllers.map((k, v) => MapEntry(k, v.text)));
+      sliderData.addAll(
+          _sliderControllers.map((k, v) => MapEntry(k, v.text)));
     }
     result['slider'] = sliderData;
-
     return result;
   }
 
@@ -109,6 +126,7 @@ class InputConfigState extends State<InputConfig> {
   }) {
     String keyName = VKMapper.parse(controller.text);
     bool hasKey = controller.text.isNotEmpty && controller.text != "0x00";
+    final theme = FluentTheme.of(context);
 
     return Expanded(
       child: GestureDetector(
@@ -120,10 +138,14 @@ class InputConfigState extends State<InputConfig> {
           child: Container(
             margin: const EdgeInsets.all(1.5),
             decoration: BoxDecoration(
-              color: hasKey ? activeColor : FluentTheme.of(context).micaBackgroundColor.withOpacity(0.5),
+              color: hasKey
+                  ? activeColor
+                  : theme.micaBackgroundColor.withOpacity(0.5),
               borderRadius: BorderRadius.circular(2),
               border: Border.all(
-                color: hasKey ? FluentTheme.of(context).accentColor : FluentTheme.of(context).resources.surfaceStrokeColorDefault,
+                color: hasKey
+                    ? theme.accentColor
+                    : theme.resources.surfaceStrokeColorDefault,
                 width: 0.5,
               ),
             ),
@@ -166,21 +188,8 @@ class InputConfigState extends State<InputConfig> {
     );
   }
 
-  Widget _buildSectionHeader(String t, IconData i) {
-    if (widget.searchKeyword.isNotEmpty) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(top: 10, bottom: 12),
-      child: Row(
-        children: [
-          Icon(i, size: 20, color: FluentTheme.of(context).accentColor),
-          const SizedBox(width: 8),
-          Text(t, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildIo3Item(String label, TextEditingController controller) {
+  Widget _buildIo3Item(
+      String label, TextEditingController controller) {
     String keyName = VKMapper.parse(controller.text);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),
@@ -191,17 +200,25 @@ class InputConfigState extends State<InputConfig> {
             flex: 7,
             child: Row(
               children: [
-                Expanded(child: TextBox(controller: controller, readOnly: true)),
+                Expanded(
+                    child: TextBox(controller: controller, readOnly: true)),
                 const SizedBox(width: 8),
                 Container(
                   width: 80,
                   alignment: Alignment.center,
                   padding: const EdgeInsets.symmetric(vertical: 6),
                   decoration: BoxDecoration(
-                    border: Border.all(color: FluentTheme.of(context).resources.surfaceStrokeColorDefault),
+                    border: Border.all(
+                      color: FluentTheme.of(context)
+                          .resources
+                          .surfaceStrokeColorDefault,
+                    ),
                     borderRadius: BorderRadius.circular(4),
                   ),
-                  child: Text(keyName, style: TextStyle(color: FluentTheme.of(context).accentColor, fontWeight: FontWeight.bold)),
+                  child: Text(keyName,
+                      style: TextStyle(
+                          color: FluentTheme.of(context).accentColor,
+                          fontWeight: FontWeight.bold)),
                 ),
                 const SizedBox(width: 8),
                 Button(
@@ -222,22 +239,27 @@ class InputConfigState extends State<InputConfig> {
   Widget build(BuildContext context) {
     if (_isLoading) return const SizedBox.shrink();
 
-    final List<String> searchTargets = [
-      "Input", "io3", "test", "service", "coin", "ir", "slider", "cell", "air", "emulation", "keyboard"
+    const searchTargets = [
+      "Input", "io3", "test", "service", "coin",
+      "ir", "slider", "cell", "air", "emulation", "keyboard"
     ];
-    final bool hasMatch = widget.searchKeyword.isEmpty ||
-        searchTargets.any((target) => target.toLowerCase().contains(widget.searchKeyword.toLowerCase()));
-
+    final kw = widget.searchKeyword;
+    final hasMatch = kw.isEmpty ||
+        searchTargets.any((t) => t.toLowerCase().contains(kw.toLowerCase()));
     if (!hasMatch) return const SizedBox.shrink();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionHeader("Input settings", FluentIcons.button_control),
-        ..._io3Controllers.entries.where((e) =>
-        widget.searchKeyword.isEmpty || e.key.toLowerCase().contains(widget.searchKeyword.toLowerCase())
-        ).map((e) => _buildIo3Item(e.key.toUpperCase(), e.value)),
-
+        SectionHeader(
+          title: "Input settings",
+          icon: FluentIcons.button_control,
+          visible: kw.isEmpty,
+        ),
+        ..._io3Controllers.entries
+            .where((e) =>
+                kw.isEmpty || e.key.toLowerCase().contains(kw.toLowerCase()))
+            .map((e) => _buildIo3Item(e.key.toUpperCase(), e.value)),
         const SizedBox(height: 16),
         Row(
           children: [
@@ -266,7 +288,6 @@ class InputConfigState extends State<InputConfig> {
             ),
           ],
         ),
-
         if (_keyboardBind)
           Padding(
             padding: const EdgeInsets.only(top: 20),
@@ -277,17 +298,20 @@ class InputConfigState extends State<InputConfig> {
                   flex: 15,
                   child: Column(
                     children: [
-                      _buildSectionHeader("[ir]", FluentIcons.hands_free),
-                      Container(
+                      SectionHeader(
+                          title: "[ir]",
+                          icon: FluentIcons.hands_free,
+                          visible: kw.isEmpty),
+                      SizedBox(
                         height: 360,
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
                         child: Column(
                           children: List.generate(6, (index) {
                             int num = 6 - index;
                             return _buildClickableBlock(
                               label: "AIR $num",
                               controller: _irControllers['ir$num']!,
-                              activeColor: const Color(0xFF00FFFF).withOpacity(0.6),
+                              activeColor:
+                                  const Color(0xFF00FFFF).withOpacity(0.6),
                             );
                           }),
                         ),
@@ -300,19 +324,25 @@ class InputConfigState extends State<InputConfig> {
                   flex: 85,
                   child: Column(
                     children: [
-                      _buildSectionHeader("[slider]", FluentIcons.touch),
-                      Container(
+                      SectionHeader(
+                          title: "[slider]",
+                          icon: FluentIcons.touch,
+                          visible: kw.isEmpty),
+                      SizedBox(
                         height: 360,
                         child: Column(
                           children: List.generate(2, (row) {
                             return Expanded(
                               child: Row(
                                 children: List.generate(16, (col) {
-                                  int cellNum = (15 - col) * 2 + (row + 1);
+                                  int cellNum =
+                                      (15 - col) * 2 + (row + 1);
                                   return _buildClickableBlock(
                                     label: "$cellNum",
-                                    controller: _sliderControllers['cell$cellNum']!,
-                                    activeColor: const Color(0xFFFFBF00).withOpacity(0.6),
+                                    controller:
+                                        _sliderControllers['cell$cellNum']!,
+                                    activeColor: const Color(0xFFFFBF00)
+                                        .withOpacity(0.6),
                                   );
                                 }),
                               ),

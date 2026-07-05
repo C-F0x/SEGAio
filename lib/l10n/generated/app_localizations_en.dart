@@ -43,7 +43,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get projectDescription =>
-      'A GUI for editing configs of Dniel97-segatools.';
+      'Tools for SEGA-related I/O, based on Dniel97-segatools';
 
   @override
   String get version => 'Version';

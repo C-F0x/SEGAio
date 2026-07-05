@@ -11,7 +11,7 @@
   "appearance": "外观设置",
   "language": "语言",
   "about": "关于项目",
-  "projectDescription": "一个用于编辑 Dniel97-segatools 配置的图形界面工具",
+  "projectDescription": "一款基于 Dniel97-segatools 的 SEGA 相关 I/O 工具",
   "version": "版本",
   "githubRepo": "GitHub 仓库",
   "githubSub": "查看源代码或提交 Issue",

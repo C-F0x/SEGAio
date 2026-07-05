@@ -1,6 +1,9 @@
 import 'dart:io';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:path/path.dart' as p;
+import '../shared/ini_reader.dart';
+import '../shared/widgets/section_header.dart';
+import '../shared/widgets/setting_item.dart';
 
 class NetworkConfig extends StatefulWidget {
   final String projectPath;
@@ -24,7 +27,7 @@ class NetworkConfigState extends State<NetworkConfig> {
   double _netenvAddrSuffix = 11.0;
   String _selectedDns = "Custom";
 
-  final Map<String, String> _dnsPresets = {
+  static const Map<String, String> _dnsPresets = {
     "Local": "127.0.0.1",
     "AquaDX": "aquadx.hydev.org",
     "RIN-NET": "aqua.naominet.live",
@@ -38,43 +41,32 @@ class NetworkConfigState extends State<NetworkConfig> {
     _loadConfig();
   }
 
+  @override
+  void dispose() {
+    _dnsDefaultController.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadConfig() async {
     setState(() => _isLoading = true);
     try {
-      final file = File(p.join(widget.projectPath, 'segatools.ini'));
-      if (await file.exists()) {
-        final lines = await file.readAsLines();
-        String currentSection = "";
-        for (var line in lines) {
-          final t = line.trim();
-          if (t.isEmpty || t.startsWith(';')) continue;
-          if (t.startsWith('[') && t.endsWith(']')) {
-            currentSection = t.toLowerCase();
-            continue;
-          }
-          final parts = t.split('=');
-          if (parts.length < 2) continue;
-          final k = parts[0].trim();
-          final v = parts[1].trim();
+      final ini = await IniReader.load(widget.projectPath);
+      if (ini == null) return;
 
-          switch (currentSection) {
-            case "[dns]":
-              if (k == 'default') {
-                _dnsDefaultController.text = v;
-                _selectedDns = "Custom";
-                _dnsPresets.forEach((name, val) {
-                  if (v == val && name != "Custom") _selectedDns = name;
-                });
-              }
-              break;
-            case "[netenv]":
-              if (k == 'enable') _netenvEnable = v == '1';
-              if (k == 'addrSuffix') {
-                _netenvAddrSuffix = double.tryParse(v) ?? 11.0;
-              }
-              break;
-          }
-        }
+      final dns = ini.section('dns');
+      if (dns != null) {
+        final val = dns.getString('default');
+        _dnsDefaultController.text = val;
+        _selectedDns = "Custom";
+        _dnsPresets.forEach((name, preset) {
+          if (val == preset && name != "Custom") _selectedDns = name;
+        });
+      }
+
+      final netenv = ini.section('netenv');
+      if (netenv != null) {
+        _netenvEnable = netenv.getBool('enable');
+        _netenvAddrSuffix = netenv.getInt('addrSuffix', 11).toDouble();
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -93,86 +85,30 @@ class NetworkConfigState extends State<NetworkConfig> {
     };
   }
 
-  Widget _buildHighlightedText(String text, String keyword) {
-    if (keyword.isEmpty || !text.toLowerCase().contains(keyword.toLowerCase())) {
-      return Text(text);
-    }
-    final String lowercaseText = text.toLowerCase();
-    final String lowercaseKeyword = keyword.toLowerCase();
-    final List<TextSpan> spans = [];
-    int start = 0;
-    int index;
-    while ((index = lowercaseText.indexOf(lowercaseKeyword, start)) != -1) {
-      if (index > start) spans.add(TextSpan(text: text.substring(start, index)));
-      spans.add(TextSpan(
-        text: text.substring(index, index + keyword.length),
-        style: TextStyle(
-          color: FluentTheme.of(context).accentColor,
-          fontWeight: FontWeight.bold,
-        ),
-      ));
-      start = index + keyword.length;
-    }
-    if (start < text.length) spans.add(TextSpan(text: text.substring(start)));
-    return RichText(
-      text: TextSpan(style: DefaultTextStyle.of(context).style, children: spans),
-    );
-  }
-
-  Widget _buildSectionHeader(String t, IconData i) {
-    if (widget.searchKeyword.isNotEmpty) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(top: 10, bottom: 12),
-      child: Row(
-        children: [
-          Icon(i, size: 20, color: FluentTheme.of(context).accentColor),
-          const SizedBox(width: 8),
-          Text(t, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSettingItem({required String label, required Widget child}) {
-    if (widget.searchKeyword.isNotEmpty &&
-        !label.toLowerCase().contains(widget.searchKeyword.toLowerCase())) {
-      return const SizedBox.shrink();
-    }
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Row(
-        children: [
-          Expanded(flex: 3, child: _buildHighlightedText(label, widget.searchKeyword)),
-          const SizedBox(width: 16),
-          Expanded(flex: 7, child: Align(alignment: Alignment.centerLeft, child: child)),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     if (_isLoading) return const SizedBox.shrink();
 
-    final List<String> searchTargets = [
-      "Network Settings",
-      "Server Address",
-      "Status",
-      "Enable NetEnv",
-      "IP Suffix"
+    const searchTargets = [
+      "Network Settings", "Server Address", "Status",
+      "Enable NetEnv", "IP Suffix"
     ];
-
-    final bool hasMatch = widget.searchKeyword.isEmpty ||
-        searchTargets.any((l) => l.toLowerCase().contains(widget.searchKeyword.toLowerCase()));
-
+    final kw = widget.searchKeyword;
+    final hasMatch = kw.isEmpty ||
+        searchTargets.any((l) => l.toLowerCase().contains(kw.toLowerCase()));
     if (!hasMatch) return const SizedBox.shrink();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionHeader("Network Settings", FluentIcons.network_tower),
-        _buildSettingItem(
+        SectionHeader(
+          title: "Network Settings",
+          icon: FluentIcons.network_tower,
+          visible: kw.isEmpty,
+        ),
+        SettingItem(
           label: "Server Address",
+          searchKeyword: kw,
           child: Row(
             children: [
               SizedBox(
@@ -184,7 +120,9 @@ class NetworkConfigState extends State<NetworkConfig> {
                       .toList(),
                   onChanged: (v) => setState(() {
                     _selectedDns = v!;
-                    if (v != "Custom") _dnsDefaultController.text = _dnsPresets[v]!;
+                    if (v != "Custom") {
+                      _dnsDefaultController.text = _dnsPresets[v]!;
+                    }
                   }),
                 ),
               ),
@@ -199,23 +137,24 @@ class NetworkConfigState extends State<NetworkConfig> {
             ],
           ),
         ),
-        _buildSettingItem(
+        SettingItem(
           label: "Status",
+          searchKeyword: kw,
           child: ToggleSwitch(
             checked: _netenvEnable,
             onChanged: (v) => setState(() => _netenvEnable = v),
             content: const Text("Enable NetEnv"),
           ),
         ),
-        _buildSettingItem(
+        SettingItem(
           label: "IP Suffix: ${_netenvAddrSuffix.toInt()}",
+          searchKeyword: kw,
           child: Slider(
             value: _netenvAddrSuffix,
             min: 2,
             max: 254,
-            onChanged: _netenvEnable
-                ? (v) => setState(() => _netenvAddrSuffix = v)
-                : null,
+            onChanged:
+                _netenvEnable ? (v) => setState(() => _netenvAddrSuffix = v) : null,
           ),
         ),
       ],

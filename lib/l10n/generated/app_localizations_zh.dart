@@ -42,7 +42,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get about => '关于项目';
 
   @override
-  String get projectDescription => '一个用于编辑 Dniel97-segatools 配置的图形界面工具';
+  String get projectDescription => '一款基于 Dniel97-segatools 的 SEGA 相关 I/O 工具';
 
   @override
   String get version => '版本';
@@ -107,7 +107,7 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get about => '關於專案';
 
   @override
-  String get projectDescription => '一個用於編輯 Dniel97-segatools 配置的圖形介面工具';
+  String get projectDescription => '一款基於 Dniel97-segatools 的 SEGA 相關 I/O 工具';
 
   @override
   String get version => '版本';
