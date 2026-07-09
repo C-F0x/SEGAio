@@ -15,14 +15,19 @@ class SectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!visible) return const SizedBox.shrink();
+    final theme = FluentTheme.of(context);
     return Padding(
-      padding: const EdgeInsets.only(top: 10, bottom: 12),
+      padding: const EdgeInsets.only(top: 12, bottom: 8),
       child: Row(
         children: [
-          Icon(icon, size: 20, color: FluentTheme.of(context).accentColor),
+          Icon(icon, size: 20, color: theme.accentColor),
           const SizedBox(width: 8),
-          Text(title,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          Text(
+            title,
+            style: theme.typography.subtitle?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       ),
     );

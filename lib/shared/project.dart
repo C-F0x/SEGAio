@@ -6,6 +6,7 @@ class Project {
   final String createdAt;
   int sortIndex;
   final int errState;
+  bool isGlobalRelative;
 
   Project({
     required this.id,
@@ -15,6 +16,7 @@ class Project {
     required this.createdAt,
     required this.sortIndex,
     required this.errState,
+    this.isGlobalRelative = false,
   });
 
   factory Project.fromJson(Map<String, dynamic> json) => Project(
@@ -25,6 +27,7 @@ class Project {
     createdAt: json['create_at'] ?? '',
     sortIndex: json['sort_index'] ?? 0,
     errState: json['err_state'] ?? 0,
+    isGlobalRelative: (json['is_global_relative'] ?? 0) == 1,
   );
 
   Map<String, dynamic> toJson() => {
@@ -35,5 +38,6 @@ class Project {
     'create_at': createdAt,
     'sort_index': sortIndex,
     'err_state': errState,
+    'is_global_relative': isGlobalRelative ? 1 : 0,
   };
 }

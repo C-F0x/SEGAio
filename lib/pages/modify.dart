@@ -1,16 +1,9 @@
 import 'dart:io';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:path/path.dart' as p;
+import '../config/modify_page.dart' as new_modify;
 
-import '../chusan/path.dart';
-import '../chusan/device.dart';
-import '../chusan/network.dart';
-import '../chusan/board.dart';
-import '../chusan/io.dart';
-import '../chusan/input.dart';
-import '../chusan/led.dart';
-import '../chusan/misc_hooks.dart';
-
+/// 转发到新的动态 ModifyPage（config/modify_page.dart）
 class ModifyPage extends StatefulWidget {
   final String projectPath;
   final Map<String, dynamic> configData;
@@ -30,49 +23,25 @@ class ModifyPage extends StatefulWidget {
 }
 
 class ModifyPageState extends State<ModifyPage> {
-  late GlobalKey<PathConfigState> _pathKey;
-  late GlobalKey<DeviceConfigState> _deviceKey;
-  late GlobalKey<NetworkConfigState> _networkKey;
-  late GlobalKey<BoardConfigState> _boardKey;
-  late GlobalKey<IoConfigState> _ioKey;
-  late GlobalKey<InputConfigState> _inputKey;
-  late GlobalKey<LedConfigState> _ledKey;
-  late GlobalKey<MiscHooksConfigState> _miscKey;
+  final GlobalKey<new_modify.ModifyPageState> _innerKey = GlobalKey();
 
-  @override
-  void initState() {
-    super.initState();
-    _generateKeys();
-  }
-
-  void _generateKeys() {
-    _pathKey = GlobalKey();
-    _deviceKey = GlobalKey();
-    _networkKey = GlobalKey();
-    _boardKey = GlobalKey();
-    _ioKey = GlobalKey();
-    _inputKey = GlobalKey();
-    _ledKey = GlobalKey();
-    _miscKey = GlobalKey();
-  }
+  /// 从 configData 中提取游戏类型
+  String get _gameType => (widget.configData['variety'] as String?) ?? 'chusan';
 
   void reloadData() {
-    setState(() {
-      _generateKeys();
-    });
+    _innerKey.currentState?.reloadData();
   }
 
   Future<bool> triggerSaveAll() async {
-    final Map<String, Map<String, String>> fullConfig = {};
+    // 收集所有 section 数据
+    final state = _innerKey.currentState;
+    if (state == null) return false;
 
-    fullConfig.addAll(_pathKey.currentState?.getConfigData() ?? {});
-    fullConfig.addAll(_deviceKey.currentState?.getConfigData() ?? {});
-    fullConfig.addAll(_networkKey.currentState?.getConfigData() ?? {});
-    fullConfig.addAll(_boardKey.currentState?.getConfigData() ?? {});
-    fullConfig.addAll(_ioKey.currentState?.getConfigData() ?? {});
-    fullConfig.addAll(_inputKey.currentState?.getConfigData() ?? {});
-    fullConfig.addAll(_ledKey.currentState?.getConfigData() ?? {});
-    fullConfig.addAll(_miscKey.currentState?.getConfigData() ?? {});
+    final sections = state.sections;
+    final Map<String, Map<String, String>> fullConfig = {};
+    for (final s in sections) {
+      fullConfig.addAll(s.getConfigData());
+    }
 
     return await _saveIniFile(fullConfig);
   }
@@ -80,18 +49,14 @@ class ModifyPageState extends State<ModifyPage> {
   Future<bool> _saveIniFile(Map<String, Map<String, String>> config) async {
     try {
       final file = File(p.join(widget.projectPath, 'segatools.ini'));
-      StringBuffer buffer = StringBuffer();
-
+      final buffer = StringBuffer();
       config.forEach((section, items) {
         if (items.isNotEmpty) {
           buffer.writeln('[$section]');
-          items.forEach((key, value) {
-            buffer.writeln('$key=$value');
-          });
+          items.forEach((key, value) => buffer.writeln('$key=$value'));
           buffer.writeln();
         }
       });
-
       await file.writeAsString(buffer.toString().trimRight() + '\n');
       return true;
     } catch (e) {
@@ -102,62 +67,13 @@ class ModifyPageState extends State<ModifyPage> {
 
   @override
   Widget build(BuildContext context) {
-    final List<Widget> children = [
-      PathConfig(
-        key: _pathKey,
-        projectPath: widget.projectPath,
-        searchKeyword: widget.searchKeyword,
-        isGlobalRelative: widget.isGlobalRelative,
-      ),
-      DeviceConfig(
-        key: _deviceKey,
-        projectPath: widget.projectPath,
-        searchKeyword: widget.searchKeyword,
-        isGlobalRelative: widget.isGlobalRelative,
-      ),
-      NetworkConfig(
-        key: _networkKey,
-        projectPath: widget.projectPath,
-        searchKeyword: widget.searchKeyword,
-      ),
-      BoardConfig(
-        key: _boardKey,
-        projectPath: widget.projectPath,
-        searchKeyword: widget.searchKeyword,
-      ),
-      IoConfig(
-        key: _ioKey,
-        projectPath: widget.projectPath,
-        searchKeyword: widget.searchKeyword,
-        isGlobalRelative: widget.isGlobalRelative,
-      ),
-      InputConfig(
-        key: _inputKey,
-        projectPath: widget.projectPath,
-        searchKeyword: widget.searchKeyword,
-      ),
-      LedConfig(
-        key: _ledKey,
-        projectPath: widget.projectPath,
-        searchKeyword: widget.searchKeyword,
-      ),
-      MiscHooksConfig(
-        key: _miscKey,
-        projectPath: widget.projectPath,
-        searchKeyword: widget.searchKeyword,
-      ),
-    ];
-
-    return SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: children.expand((widget) => [
-            widget,
-            const SizedBox(height: 16),
-          ]).toList()..removeLast(),
-        ),
-      ),
+    return new_modify.ModifyPage(
+      key: _innerKey,
+      projectPath: widget.projectPath,
+      gameType: _gameType,
+      configData: widget.configData,
+      searchKeyword: widget.searchKeyword,
+      isGlobalRelative: widget.isGlobalRelative,
     );
   }
 }

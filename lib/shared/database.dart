@@ -1,15 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:path/path.dart' as p;
 import 'project.dart';
+import 'app_paths.dart';
 
 class JsonDbService {
   static Future<File> _getProjectFile() async {
-    final appData = Platform.environment['APPDATA'];
-    final dirPath = p.join(appData!, 'org.cf0x');
-    final directory = Directory(dirPath);
-    if (!await directory.exists()) await directory.create(recursive: true);
-    return File(p.join(dirPath, 'projects.json'));
+    final path = await AppPaths.projectsFile;
+    return File(path);
   }
 
   static Future<List<Project>> loadProjects() async {
